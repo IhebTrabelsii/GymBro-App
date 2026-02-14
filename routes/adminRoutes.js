@@ -1,63 +1,111 @@
-const express = require('express');
+import express from 'express';
+import User from '../models/User.js';
+import Plan from '../models/Plan.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import requireAdmin from '../middleware/requireAdmin.js';
+import { adminAuth } from "../middleware/adminAuth.js";
+
 const router = express.Router();
-const User = require('../models/User');       // single User model for both users and admins
-const Plan = require('../models/Plan');       // import Plan model
-const bcrypt = require('bcryptjs');
-
-// Admin signup
-router.post('/signup', async (req, res) => {
-  try {
-    const { email, password, username } = req.body;
-
-    // Check if user/admin with this email already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Email already in use' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newAdmin = new User({ 
-      email, 
-      username,          // optional, if you want username
-      password: hashedPassword, 
-      role: 'admin'      // set role to admin here
-    });
-    await newAdmin.save();
-
-    res.status(201).json({ message: 'Admin created!' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+const SECRET_KEY = process.env.JWT_SECRET;
 
 // Admin login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const admin = await User.findOne({ email, role: 'admin' }); // find admin by role
+    const admin = await User.findOne({ email, role: 'admin' }).select('+password');
+    
+    if (!admin || !(await bcrypt.compare(password, admin.password))) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
 
-    if (!admin) return res.status(400).json({ error: 'Admin not found' });
+    admin.lastLogin = new Date();
+    await admin.save();
 
-    const isMatch = await bcrypt.compare(password, admin.password);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
+    const token = jwt.sign(
+      { userId: admin._id, role: 'admin' },
+      SECRET_KEY,
+      { expiresIn: '8h' }
+    );
 
-    res.json({ message: 'Admin login successful', adminId: admin._id });
+    res.json({
+      success: true,
+      token,
+      admin: {
+        id: admin._id,
+        email: admin.email,
+        lastLogin: admin.lastLogin,
+      }
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('💥 Login error:', err);
+    return res.status(500).json({ success: false, error: 'Server error during login' });
   }
 });
 
-// Admin stats
-router.get('/stats', async (req, res) => {
+// Dashboard stats - REAL DATA from database
+router.get('/dashboard', requireAdmin, async (req, res) => {
   try {
-    const adminCount = await User.countDocuments({ role: 'admin' });
-    const userCount = await User.countDocuments({ role: { $ne: 'admin' } });
-    const planCount = await Plan.countDocuments();
+    // Get real counts from your database
+    const users = await User.countDocuments({ role: 'user' }); // Count only regular users, not admins
+    const workouts = await Plan.countDocuments(); // Count total workout plans
+    const news = 0; // You'll need to create a News model first, or set to 0 for now
 
-    res.json({ admins: adminCount, users: userCount, plans: planCount });
+    console.log('📊 Dashboard stats fetched:', { users, workouts, news });
+
+    res.json({ 
+      users, 
+      workouts, 
+      news 
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('💥 Dashboard error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load dashboard stats' });
   }
 });
 
-module.exports = router;
+// Get all users (for user management page)
+router.get('/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find({ role: 'user' }).select('-password');
+    res.json({ success: true, users });
+  } catch (err) {
+    console.error('💥 Error fetching users:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch users' });
+  }
+});
+
+// UPDATE user (admin only)
+router.put('/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const { username, email } = req.body;
+    
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { username, email },
+      { new: true, runValidators: true }
+    ).select('-password');
+    
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    
+    res.json({ success: true, user: updatedUser });
+  } catch (err) {
+    console.error('💥 Error updating user:', err);
+    res.status(500).json({ success: false, error: 'Failed to update user' });
+  }
+});
+
+// Delete user
+router.delete('/users/:id', requireAdmin, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('💥 Error deleting user:', err);
+    res.status(500).json({ success: false, error: 'Failed to delete user' });
+  }
+});
+
+export default router;

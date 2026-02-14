@@ -1,39 +1,34 @@
-require('dotenv').config();
-const { MongoClient } = require('mongodb');
-const bcrypt = require('bcrypt');
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import User from './models/User.js'; // adjust path if needed
+
+dotenv.config();
 
 async function createAdmin() {
-  const uri = process.env.MONGO_URI;
-  const client = new MongoClient(uri);
-
   try {
-    await client.connect();
-    const db = client.db('GymBroDB'); // Your database name
-    const usersCollection = db.collection('users'); // Your users collection name
+    await mongoose.connect(process.env.MONGO_URI);
 
-    // Admin user data
-    const adminData = {
-      username: 'adminuser',
-      email: 'admin@example.com',
-      password: await bcrypt.hash('StrongAdminPassword123!', 10),
-      role: 'admin',
-      createdAt: new Date(),
-    };
+    const email = process.env.ADMIN_EMAIL || 'admin@example.com';
+    const existingAdmin = await User.findOne({ email });
 
-    // Check if admin already exists
-    const existingAdmin = await usersCollection.findOne({ email: adminData.email });
     if (existingAdmin) {
-      console.log('Admin user already exists.');
+      console.log('ℹ️ Admin already exists');
       return;
     }
 
-    // Insert admin user
-    const result = await usersCollection.insertOne(adminData);
-    console.log('Admin user created with id:', result.insertedId);
+    const newAdmin = new User({
+      username: 'adminuser',
+      email,
+      password: process.env.ADMIN_INITIAL_PASSWORD || 'TempPass123!',
+      role: 'admin'
+    });
+
+    await newAdmin.save();
+    console.log('✅ Admin created with ID:', newAdmin._id);
   } catch (error) {
-    console.error('Error creating admin user:', error);
+    console.error('❌ Error creating admin:', error.message);
   } finally {
-    await client.close();
+    await mongoose.disconnect();
   }
 }
 

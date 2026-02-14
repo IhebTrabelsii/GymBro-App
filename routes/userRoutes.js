@@ -1,11 +1,32 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto'; // 👈 ADD THIS for generating tokens
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import authenticateToken from '../middleware/auth.js';
+import { sendVerificationEmail } from '../utils/emailService.js'; // 👈 ADD THIS
+
 const router = express.Router();
-const SECRET_KEY = 'your_secret_key'; // store in env file in real apps
-// GET /api/users - returns all users (without passwords)
-router.get('/', async (req, res) => {
+const SECRET_KEY = process.env.JWT_SECRET;
+
+if (!SECRET_KEY) throw new Error('🚨 Missing JWT_SECRET env variable.');
+
+// Email validation function
+const validateEmail = (email) => {
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email);
+};
+
+// Password validation function
+const validatePassword = (password) => {
+  if (!password || password.length < 6) {
+    return { isValid: false, message: 'Password must be at least 6 characters' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// ===== PUBLIC ROUTES =====
+router.get('/', async (_req, res) => {
   try {
     const users = await User.find({}, 'username email phone');
     res.json({ users });
@@ -14,62 +35,379 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/users/signup
+// ===== SIGNUP WITH EMAIL VERIFICATION =====
 router.post('/signup', async (req, res) => {
-  console.log('Received signup data:', req.body);
-
   try {
-    const { username, phone, email, password } = req.body;
-
-    if (!username || !email || !password) {
-      return res.status(400).json({ error: 'Username, email and password are required.' });
+    const { username, phone, email, password, role } = req.body;
+    
+    // Validate email format
+    if (!email || !validateEmail(email)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Please enter a valid email address' 
+      });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Validate password strength
+    const { isValid: isPasswordValid, message: passwordMessage } = validatePassword(password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: passwordMessage 
+      });
+    }
+    
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email already registered' 
+      });
+    }
+    
+    const finalRole = role === 'admin' ? 'admin' : 'user';
 
     const newUser = new User({
       username,
       phone,
       email,
-      password: hashedPassword,
+      password,
+      role: finalRole,
     });
 
     await newUser.save();
 
-    res.status(201).json({ message: 'User created!' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    // ===== NEW: Generate verification token =====
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    
+    await User.findByIdAndUpdate(newUser._id, {
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    });
 
+    // Send verification email
+    await sendVerificationEmail(email, username, verificationToken);
 
-
-
-// POST /api/users/login
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
-    }
-
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ error: 'User not found' });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
-
-    const token = jwt.sign({ userId: user._id }, SECRET_KEY, { expiresIn: '2h' });
-
-    res.json({
-      message: 'Login successful',
-      token, // ✅ Token returned correctly
-      userId: user._id,
+    res.status(201).json({
+      success: true,
+      message: 'User created! Please check your email to verify your account.',
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+        phone: newUser.phone,
+        role: newUser.role,
+      },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // Handle duplicate key error (email or username)
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern)[0];
+      return res.status(400).json({ 
+        success: false, 
+        error: `${field} already exists` 
+      });
+    }
+    console.error('Signup error:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-export default router;
+// ===== EMAIL VERIFICATION ENDPOINT =====
+router.get('/verify-email/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid or expired verification token' 
+      });
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Email verified successfully! You can now log in.' 
+    });
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// ===== RESEND VERIFICATION EMAIL =====
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email already verified' 
+      });
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+    await user.save();
+
+    await sendVerificationEmail(email, user.username, verificationToken);
+
+    res.json({ 
+      success: true, 
+      message: 'Verification email resent. Please check your inbox.' 
+    });
+  } catch (error) {
+    console.error('Resend error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// ===== LOGIN =====
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ success: false, error: 'Email and password required' });
+  }
+
+  // Validate email format
+  if (!validateEmail(email)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Please enter a valid email address' 
+    });
+  }
+
+  try {
+    const user = await User.findOne({ email }).select('+password +role');
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
+
+    // ===== NEW: Check if email is verified =====
+    if (!user.isEmailVerified) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Please verify your email before logging in',
+        needsVerification: true,
+        email: user.email
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      SECRET_KEY,
+      { expiresIn: user.role === 'admin' ? '8h' : '2h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        plan: user.plan || 'free',
+        isEmailVerified: user.isEmailVerified,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Login error:', err);
+    res.status(500).json({ success: false, error: 'Server error during login' });
+  }
+});
+
+// ===== PROTECTED ROUTES =====
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({ user });
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/plan', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('plan premiumSince isEmailVerified');
+    res.json({ 
+      success: true, 
+      plan: user.plan || 'free',
+      premiumSince: user.premiumSince,
+      isEmailVerified: user.isEmailVerified
+    });
+  } catch (error) {
+    console.error('Plan fetch error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+router.post('/upgrade', authenticateToken, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    
+    if (!['monthly', 'yearly', 'lifetime'].includes(plan)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid plan' 
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        plan: plan,
+        premiumSince: new Date()
+      },
+      { new: true }
+    ).select('plan premiumSince');
+
+    res.json({ 
+      success: true, 
+      message: `Upgraded to ${plan} plan`,
+      user 
+    });
+
+  } catch (error) {
+    console.error('Upgrade error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+router.get('/stats', authenticateToken, async (req, res) => {
+  try {
+    const stats = {
+      totalWorkouts: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      totalPRs: 0,
+      totalMinutes: 0,
+      achievements: 0,
+    };
+    res.json({ stats });
+  } catch (error) {
+    console.error('Stats fetch error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const updates = {};
+    
+    if (req.body.fullName !== undefined) updates.fullName = req.body.fullName;
+    if (req.body.bio !== undefined) updates.bio = req.body.bio;
+    if (req.body.location !== undefined) updates.location = req.body.location;
+    if (req.body.birthDate !== undefined) updates.birthDate = req.body.birthDate;
+    if (req.body.height !== undefined) updates.height = req.body.height;
+    if (req.body.weight !== undefined) updates.weight = req.body.weight;
+    if (req.body.fitnessLevel !== undefined) updates.fitnessLevel = req.body.fitnessLevel;
+    if (req.body.goals !== undefined) updates.goals = req.body.goals;
+    if (req.body.notifications !== undefined) updates['preferences.notifications'] = req.body.notifications;
+    if (req.body.privacy !== undefined) updates['preferences.privacy'] = req.body.privacy;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ user, message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Current password and new password are required' 
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Password must be at least 6 characters' 
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Current password is incorrect' 
+      });
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    user.password = await bcrypt.hash(newPassword, salt);
+    user.skipPasswordHashing = true;
+    await user.save();
+
+    console.log(`✅ Password changed for user: ${user.email}`);
+
+    res.json({ 
+      success: true, 
+      message: 'Password updated successfully' 
+    });
+
+  } catch (error) {
+    console.error('❌ Change password error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error. Please try again.' 
+    });
+  }
+});
+
+export default router;  

@@ -1,37 +1,75 @@
+// 1. Load .env at the very top
+import 'dotenv/config';
+
 import express from 'express';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import cors from 'cors';
-
 import userRoutes from './routes/userRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import newsRoutes from './routes/newsRoutes.js';
+import User from './models/User.js';
+import bcrypt from 'bcryptjs';
+import planRoutes from './routes/planRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 
-dotenv.config();
+
+const {
+  MONGO_URI,
+  JWT_SECRET,
+  ADMIN_EMAIL,
+  NODE_ENV,
+  ADMIN_INITIAL_PASSWORD,
+  CREATE_DEFAULT_ADMIN
+} = process.env;
+
+if (!MONGO_URI) throw new Error('❌ MONGO_URI is not defined in environment');
+if (!JWT_SECRET) throw new Error('❌ JWT_SECRET is not defined in environment variables');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// CORS & JSON
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('✅ MongoDB connected');
-
-    // Start server only AFTER DB connects
- app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on port ${PORT}`);
-});
-
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1); // exit if DB fails to connect
-  });
-
 // Routes
-app.get('/', (req, res) => res.send('Server is running'));
+app.use('/api/payments', paymentRoutes);
+app.use('/api/plans', planRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/admins', adminRoutes);
+app.use('/api/news', newsRoutes);
+app.use('/api/admin', adminRoutes);
+
+
+
+// Create initial admin if needed
+async function createInitialAdmin() {
+  const adminExists = await User.findOne({ role: 'admin' });
+  if (!adminExists && ADMIN_EMAIL && ADMIN_INITIAL_PASSWORD) {
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(ADMIN_INITIAL_PASSWORD, salt);
+
+    const admin = new User({
+      username: 'admin',
+      email: ADMIN_EMAIL,
+      password: hashedPassword,
+      role: 'admin',
+    });
+
+    await admin.save();
+    console.log('✅ Initial admin created:', ADMIN_EMAIL);
+  }
+}
+
+mongoose.connect(MONGO_URI)
+  .then(async () => {
+    console.log('✅ MongoDB connected');
+    if (CREATE_DEFAULT_ADMIN === 'true') await createInitialAdmin();
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server listening on http://0.0.0.0:${PORT}`);
+  console.log(`📱 On your phone, use: http://YOUR_COMPUTER_IP:${PORT}`);
+});
+  })
+  .catch(err => {
+    console.error('❌ DB connect error:', err);
+    process.exit(1);
+  });
