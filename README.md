@@ -129,13 +129,13 @@ PORT=3000
 |----------|----------|-------------|
 | `MONGO_URI` | ✅ Yes | MongoDB connection string |
 | `JWT_SECRET` | ✅ Yes | Secret key for signing JWT tokens |
-| `ADMIN_EMAIL` | ❌ No | Email for default admin account |
-| `ADMIN_INITIAL_PASSWORD` | ❌ No | Initial password for default admin |
-| `CREATE_DEFAULT_ADMIN` | ❌ No | Set to 'true' to create default admin on startup |
-| `SMTP_HOST` | ❌ No | SMTP server address (leave empty to use Ethereal test) |
-| `SMTP_PORT` | ❌ No | SMTP port (usually 587 for TLS, 465 for SSL) |
-| `SMTP_USER` | ❌ No | SMTP username/email |
-| `SMTP_PASS` | ❌ No | SMTP password or app-specific password |
+| `ADMIN_EMAIL` | ✅ Yes | Email for default admin account |
+| `ADMIN_INITIAL_PASSWORD` | ✅ Yes | Initial password for default admin |
+| `CREATE_DEFAULT_ADMIN` | ✅ Yes | Set to 'true' to create default admin on startup |
+| `SMTP_HOST` | ✅ Yes | SMTP server address (leave empty to use Ethereal test) |
+| `SMTP_PORT` | ✅ Yes | SMTP port (usually 587 for TLS, 465 for SSL) |
+| `SMTP_USER` | ✅ Yes | SMTP username/email |
+| `SMTP_PASS` | ✅ Yes | SMTP password or app-specific password |
 | `STRIPE_SECRET_KEY` | ❌ No | Stripe secret key for backend |
 | `STRIPE_PUBLISHABLE_KEY` | ❌ No | Stripe publishable key |
 | `NODE_ENV` | ❌ No | Environment (development/production) |
