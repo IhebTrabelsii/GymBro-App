@@ -164,8 +164,6 @@ NODE_ENV=development
 - Generate [App Password](https://myaccount.google.com/apppasswords)
 - Use app password in `SMTP_PASS`
 
-## Project Structure
-
 ```
 gymbro-backend/
 ├── models/                  # Mongoose schemas
