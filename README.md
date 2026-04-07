@@ -138,19 +138,75 @@ NODE_ENV=development
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `MONGO_URI` | Yes | MongoDB connection string |
-| `JWT_SECRET` | Yes | Secret key for JWT token signing |
-| `PORT` | No | Server port (default: 3000) |
-| `NODE_ENV` | No | Environment mode: development or production |
-| `ADMIN_EMAIL` | No | Email address for default admin account |
-| `ADMIN_INITIAL_PASSWORD` | No | Initial password for default admin user |
-| `CREATE_DEFAULT_ADMIN` | No | Set to 'true' to create admin on startup |
-| `SMTP_HOST` | No | Email server address (Gmail: smtp.gmail.com) |
-| `SMTP_PORT` | No | Email server port (587 for TLS, 465 for SSL) |
-| `SMTP_USER` | No | Email server username |
-| `SMTP_PASS` | No | Email server password or app-specific password |
-| `STRIPE_SECRET_KEY` | No | Stripe API secret key for backend transactions |
-| `STRIPE_PUBLISHABLE_KEY` | No | Stripe API key for frontend usage |
+| `MONGO_URI` | ✅ Yes | MongoDB connection string |
+| `JWT_SECRET` | ✅ Yes | Secret key for signing JWT tokens |
+| `ADMIN_EMAIL` | ❌ No | Email for default admin account |
+| `ADMIN_INITIAL_PASSWORD` | ❌ No | Initial password for default admin |
+| `CREATE_DEFAULT_ADMIN` | ❌ No | Set to 'true' to create default admin on startup |
+| `SMTP_HOST` | ❌ No | SMTP server address (leave empty to use Ethereal test) |
+| `SMTP_PORT` | ❌ No | SMTP port (usually 587 for TLS, 465 for SSL) |
+| `SMTP_USER` | ❌ No | SMTP username/email |
+| `SMTP_PASS` | ❌ No | SMTP password or app-specific password |
+| `STRIPE_SECRET_KEY` | ❌ No | Stripe secret key for backend |
+| `STRIPE_PUBLISHABLE_KEY` | ❌ No | Stripe publishable key |
+| `NODE_ENV` | ❌ No | Environment (development/production) |
+| `PORT` | ❌ No | Server port (default: 3000) |
+
+### Email Configuration
+
+**Option 1: Test Mode (Development)**
+- Leave `SMTP_USER` and `SMTP_PASS` empty
+- Emails will be sent through Ethereal Email (fake SMTP)
+- Check preview URL in console logs
+
+**Option 2: Production (Gmail)**
+- Use Gmail SMTP: `smtp.gmail.com`
+- Generate [App Password](https://myaccount.google.com/apppasswords)
+- Use app password in `SMTP_PASS`
+
+## Project Structure
+
+```
+gymbro-backend/
+├── models/                  # Mongoose schemas
+│   ├── User.js             # User model with auth & subscription fields
+│   ├── Admin.js            # Admin model
+│   └── Plan.js             # Fitness plan/subscription model
+├── routes/                 # API route handlers
+│   ├── userRoutes.js       # User endpoints (signup, login, profile)
+│   ├── authRoutes.js       # Authentication endpoints
+│   ├── adminRoutes.js      # Admin endpoints
+│   ├── newsRoutes.js       # News management
+│   ├── planRoutes.js       # Fitness plans
+│   └── paymentRoutes.js    # Payment/Stripe endpoints
+├── middleware/             # Express middleware
+│   ├── auth.js             # JWT authentication
+│   ├── adminAuth.js        # Admin authorization
+│   └── requireAdmin.js     # Admin role checks
+├── controllers/            # Business logic
+├── utils/                  # Utility functions
+│   └── emailService.js     # Email sending (verification, reset)
+├── scripts/                # Database scripts
+│   └── seedPlans.js        # Seed default plans
+├── server.js               # Main server file
+├── package.json            # Dependencies and scripts
+├── .env                    # Environment variables (git ignored)
+└── README.md              # This file
+```
+
+## API Endpoints
+
+### Authentication & User Routes
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/api/users/signup` | Register new user | ❌ |
+| `POST` | `/api/users/login` | Login user | ❌ |
+| `GET` | `/api/users/verify-email/:token` | Verify email address | ❌ |
+| `POST` | `/api/users/forgot-password` | Request password reset | ❌ |
+| `POST` | `/api/users/reset-password` | Reset password with token | ❌ |
+| `GET` | `/api/users/profile` | Get user profile | ✅ |
+| `PUT` | `/api/users/profile` | Update user profile | ✅ |
 
 ### Database Setup
 
