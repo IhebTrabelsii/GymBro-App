@@ -1,6 +1,6 @@
 // 1. Load .env at the very top
 import 'dotenv/config';
-
+import aiCoachRoutes from './routes/aiCoachRoutes.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -11,7 +11,9 @@ import User from './models/User.js';
 import bcrypt from 'bcryptjs';
 import planRoutes from './routes/planRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
-
+import dailyDataRoutes from './routes/dailyDataRoutes.js';
+import foodRoutes from './routes/foodRoutes.js';
+import './models/Exercise.js'; 
 
 const {
   MONGO_URI,
@@ -38,6 +40,10 @@ app.use('/api/plans', planRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/ai-coach', aiCoachRoutes);
+app.use('/api/daily-data', dailyDataRoutes);
+app.use('/reports', express.static('backend/reports'));
+app.use('/api/foods', foodRoutes);
 
 
 

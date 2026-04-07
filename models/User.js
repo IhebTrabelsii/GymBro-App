@@ -96,7 +96,71 @@ const userSchema = new mongoose.Schema({
     type: Date,
     select: false
   },
+  dailyCheckIns: {
+    type: [Date],
+    default: []
+  },
   
+  // Current streak (consecutive days)
+  currentStreak: {
+    type: Number,
+    default: 0
+  },
+  
+  // Longest streak ever achieved
+  longestStreak: {
+    type: Number,
+    default: 0
+  },
+  
+  // Last check-in date (to calculate streaks)
+  lastCheckIn: {
+    type: Date,
+    default: null
+  },
+  
+  // Weekly goals tracking
+  weeklyProgress: {
+    weekStart: { type: Date, default: () => new Date() },
+    completedWorkouts: { type: Number, default: 0 },
+    weeklyGoal: { type: Number, default: 4 },  // Default goal per body type
+    rewardClaimed: { type: Boolean, default: false }
+  },
+  
+  // Body type (for personalized missions)
+  bodyType: {
+    type: String,
+    enum: ['Ectomorph', 'Mesomorph', 'Endomorph', null],
+    default: null
+  },
+  
+  // Active missions based on body type
+  missions: [{
+    id: { type: String, required: true },
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    category: { type: String, enum: ['daily', 'weekly', 'streak', 'workout'], default: 'weekly' },
+    target: { type: Number, required: true },      // e.g., 4 workouts per week
+    progress: { type: Number, default: 0 },
+    completed: { type: Boolean, default: false },
+    reward: { type: Number, default: 20 },         // AI questions reward
+    completedAt: Date
+  }],
+  
+  // Earned achievements (permanent)
+  achievements: [{
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    description: { type: String },
+    icon: { type: String },  // emoji or icon name
+    earnedAt: { type: Date, default: Date.now }
+  }],
+  
+  // AI Coach messages remaining (for rewards)
+  aiMessagesRemaining: {
+    type: Number,
+    default: 10  // Free tier gets 10 messages
+  },
   // ===== PASSWORD RESET FIELDS =====
   resetPasswordToken: {
     type: String,

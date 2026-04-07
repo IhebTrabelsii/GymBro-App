@@ -1,0 +1,155 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>GymBro - Monthly Report</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+          padding: 20px;
+          min-height: 100vh;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          background: #1e1e1e;
+          border-radius: 32px;
+          overflow: hidden;
+          border: 2px solid #39FF14;
+          box-shadow: 0 20px 60px rgba(57, 255, 20, 0.15);
+        }
+        .header {
+          background: linear-gradient(135deg, #39FF14 0%, #2ECC40 100%);
+          padding: 32px 24px;
+          text-align: center;
+        }
+        .header h1 { color: #000; font-size: 28px; margin-bottom: 4px; }
+        .header p { color: rgba(0,0,0,0.7); font-size: 14px; }
+        .content { padding: 24px; }
+        .greeting { color: #39FF14; font-size: 20px; margin-bottom: 16px; }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+        .stat-card {
+          background: #2a2a2a;
+          border-radius: 16px;
+          padding: 16px;
+          text-align: center;
+        }
+        .stat-label { color: #888; font-size: 12px; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-value { color: #39FF14; font-size: 28px; font-weight: bold; }
+        .stat-unit { color: #666; font-size: 12px; }
+        .weight-change {
+          background: #2a2a2a;
+          border-radius: 16px;
+          padding: 20px;
+          text-align: center;
+          margin-bottom: 24px;
+          border-left: 4px solid #39FF14;
+        }
+        .change-value { font-size: 36px; font-weight: bold; color: #39FF14; }
+        .change-label { color: #888; margin-top: 8px; }
+        .insight {
+          background: rgba(57, 255, 20, 0.1);
+          border-radius: 16px;
+          padding: 16px;
+          margin-bottom: 24px;
+          border: 1px solid rgba(57, 255, 20, 0.3);
+        }
+        .insight-title { color: #39FF14; font-weight: bold; margin-bottom: 8px; }
+        .insight-text { color: #ccc; line-height: 1.5; }
+        .progress-bar-container {
+          background: #2a2a2a;
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 24px;
+        }
+        .progress-label { color: #888; font-size: 12px; margin-bottom: 8px; }
+        .progress-bar-bg { background: #333; border-radius: 10px; height: 12px; overflow: hidden; }
+        .progress-fill { background: #39FF14; height: 100%; width: 0%; border-radius: 10px; }
+        .days-tracked { color: #39FF14; text-align: center; margin-top: 16px; font-size: 14px; }
+        .footer {
+          background: #161616;
+          padding: 16px;
+          text-align: center;
+          color: #555;
+          font-size: 12px;
+        }
+        .motivation { color: #39FF14; font-weight: bold; margin-top: 16px; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🏋️ GymBro</h1>
+          <p>Monthly Progress Report</p>
+        </div>
+        <div class="content">
+          <div class="greeting">Hello, username! 👋</div>
+          
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Days Tracked</div>
+              <div class="stat-value">1</div>
+              <div class="stat-unit">/ 5 days</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Avg BMI</div>
+              <div class="stat-value">21.8</div>
+              <div class="stat-unit">kg/m²</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Avg BMR</div>
+              <div class="stat-value">1638</div>
+              <div class="stat-unit">kcal/day</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Avg TDEE</div>
+              <div class="stat-value">1965</div>
+              <div class="stat-unit">kcal/day</div>
+            </div>
+          </div>
+
+          <div class="weight-change">
+            <div class="change-value">
+              0.0 kg
+            </div>
+            <div class="change-label">
+              ⚖️ Weight Maintained
+              <br>66kg → 66kg
+            </div>
+          </div>
+
+          <div class="insight">
+            <div class="insight-title">💡 Monthly Insight</div>
+            <div class="insight-text">
+              You've just started tracking! Keep logging daily to see meaningful insights next month. Consistency is key! 🔑
+            </div>
+          </div>
+
+          <div class="progress-bar-container">
+            <div class="progress-label">📊 Tracking Consistency</div>
+            <div class="progress-bar-bg">
+              <div class="progress-fill" style="width: 3.3333333333333335%"></div>
+            </div>
+            <div class="days-tracked">🎯 1 out of 30 days tracked</div>
+          </div>
+
+          <div class="motivation">
+            ✨ Every journey starts with a single step. Start tracking today!
+          </div>
+        </div>
+        <div class="footer">
+          GymBro • Your Fitness Journey • April 2026
+        </div>
+      </div>
+    </body>
+    </html>
+  

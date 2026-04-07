@@ -1,6 +1,8 @@
 import express from 'express';
 import Plan from '../models/Plan.js';
 import requireAdmin from '../middleware/requireAdmin.js';
+import authenticateToken from '../middleware/auth.js';
+import Exercise from '../models/Exercise.js';
 
 const router = express.Router();
 
@@ -113,4 +115,121 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// GET exercises for a specific plan by plan title
+// GET exercises for a specific plan by plan title
+router.get('/:planTitle/exercises', authenticateToken, async (req, res) => {
+  try {
+    const { planTitle } = req.params;
+    
+    if (planTitle === 'all') {
+      const allPlans = await Plan.find().populate('exercises');
+      const allExercises = allPlans.flatMap(plan => plan.exercises);
+      const uniqueExercises = [];
+      const exerciseIds = new Set();
+      for (const exercise of allExercises) {
+        if (!exerciseIds.has(exercise._id.toString())) {
+          exerciseIds.add(exercise._id.toString());
+          uniqueExercises.push(exercise);
+        }
+      }
+      
+      return res.json({
+        success: true,
+        plan: {
+          name: "All Exercises",
+          description: "Complete collection of exercises from all plans",
+          color: "#2E7D32",
+          emoji: "📚",
+          stats: {
+            totalExercises: uniqueExercises.length,
+            weeklyFrequency: 0,
+            avgDuration: "0 min",
+            caloriesBurn: "0"
+          },
+          exercises: uniqueExercises.map(ex => ({
+            id: ex._id,
+            name: ex.name,
+            category: ex.category,
+            sets: ex.sets,
+            reps: ex.reps,
+            rest: ex.rest,
+            difficulty: ex.difficulty,
+            muscleGroups: ex.muscleGroups,
+            equipment: ex.equipment,
+            description: ex.description,
+            tips: ex.tips,
+            imageUrl: ex.imageUrl,
+            videoUrl: ex.videoUrl,
+            gifUrl: ex.gifUrl,
+            calories: ex.calories,
+            popularity: ex.popularity,
+            expertTip: ex.expertTip
+          }))
+        }
+      });
+    }
+    
+    // Normal case: find specific plan
+    const plan = await Plan.findOne({ title: planTitle }).populate('exercises');
+    
+    if (!plan) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Plan not found" 
+      });
+    }
+    
+    // ... rest of your existing code for single plan
+    const getEmoji = (bodyType) => {
+      switch(bodyType) {
+        case 'Ectomorph': return '🔥';
+        case 'Mesomorph': return '💪';
+        case 'Endomorph': return '⚡';
+        default: return '🏋️';
+      }
+    };
+    
+    res.json({
+      success: true,
+      plan: {
+        name: plan.title,
+        description: plan.description,
+        color: "#2E7D32",
+        emoji: getEmoji(plan.bodyType),
+        stats: {
+          totalExercises: plan.exercises.length,
+          weeklyFrequency: plan.days.length,
+          avgDuration: "45 min",
+          caloriesBurn: "400-600"
+        },
+        exercises: plan.exercises.map(ex => ({
+          id: ex._id,
+          name: ex.name,
+          category: ex.category,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest: ex.rest,
+          difficulty: ex.difficulty,
+          muscleGroups: ex.muscleGroups,
+          equipment: ex.equipment,
+          description: ex.description,
+          tips: ex.tips,
+          imageUrl: ex.imageUrl,
+          videoUrl: ex.videoUrl,
+          gifUrl: ex.gifUrl,
+          calories: ex.calories,
+          popularity: ex.popularity,
+          expertTip: ex.expertTip
+        }))
+      }
+    });
+    
+  } catch (error) {
+    console.error("Error fetching plan exercises:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
 export default router;

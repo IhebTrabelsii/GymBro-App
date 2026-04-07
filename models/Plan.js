@@ -28,6 +28,12 @@ const PlanSchema = new mongoose.Schema({
     enum: ['leaf', 'arm-flex', 'run', 'barbell', 'fitness', 'flash', 'run-fast']
   },
   
+  // 👇 ADD THIS - Exercises in this plan
+  exercises: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Exercise',
+  }],
+  
   // Admin who created it
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
   

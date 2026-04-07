@@ -480,6 +480,7 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
+
 // Reset password - verify token and update password
 router.post("/reset-password/:token", async (req, res) => {
   try {
@@ -530,6 +531,409 @@ router.post("/reset-password/:token", async (req, res) => {
       success: false,
       error: "Server error",
     });
+  }
+});
+// ===== ACTIVITY & ACHIEVEMENTS ROUTES =====
+
+// ✅ DAILY CHECK-IN
+router.post("/checkin", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Check if already checked in today
+    const alreadyCheckedIn = user.dailyCheckIns.some(date => {
+      const checkDate = new Date(date);
+      checkDate.setHours(0, 0, 0, 0);
+      return checkDate.getTime() === today.getTime();
+    });
+
+    if (alreadyCheckedIn) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Already checked in today!" 
+      });
+    }
+    // Add today's check-in
+    user.dailyCheckIns.push(today);
+    
+    // Update streak
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const checkedInYesterday = user.dailyCheckIns.some(date => {
+      const checkDate = new Date(date);
+      checkDate.setHours(0, 0, 0, 0);
+      return checkDate.getTime() === yesterday.getTime();
+    });
+
+    if (checkedInYesterday) {
+      user.currentStreak += 1;
+    } else {
+      user.currentStreak = 1;
+    }
+    
+    // Update longest streak
+    if (user.currentStreak > user.longestStreak) {
+      user.longestStreak = user.currentStreak;
+    }
+    
+    user.lastCheckIn = today;
+    await user.save();
+
+    // Check for streak achievements
+    const streakAchievements = [
+      { days: 7, name: "Week Warrior", description: "7 day streak!", icon: "🔥" },
+      { days: 30, name: "Monthly Master", description: "30 day streak!", icon: "👑" },
+      { days: 100, name: "Century Club", description: "100 day streak!", icon: "💎" }
+    ];
+    
+    let newAchievements = [];
+    for (const ach of streakAchievements) {
+      if (user.currentStreak === ach.days) {
+        const alreadyHas = user.achievements.some(a => a.name === ach.name);
+        if (!alreadyHas) {
+          newAchievements.push({
+            id: `streak_${ach.days}`,
+            name: ach.name,
+            description: ach.description,
+            icon: ach.icon,
+            earnedAt: new Date()
+          });
+        }
+      }
+    }
+    
+    if (newAchievements.length > 0) {
+      user.achievements.push(...newAchievements);
+      await user.save();
+    }
+
+    res.json({
+      success: true,
+      message: "Checked in successfully!",
+      currentStreak: user.currentStreak,
+      longestStreak: user.longestStreak,
+      newAchievements
+    });
+  } catch (error) {
+    console.error("Check-in error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ LOG WORKOUT (progress for missions)
+router.post("/log-workout", authenticateToken, async (req, res) => {
+  try {
+    const { workoutId, duration } = req.body;
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    // Update weekly progress
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+    
+    if (user.weeklyProgress.weekStart < weekStart) {
+      // New week - reset
+      user.weeklyProgress.weekStart = weekStart;
+      user.weeklyProgress.completedWorkouts = 1;
+      user.weeklyProgress.rewardClaimed = false;
+    } else {
+      user.weeklyProgress.completedWorkouts += 1;
+    }
+    
+    // Update missions progress
+    let completedMissions = [];
+    for (let i = 0; i < user.missions.length; i++) {
+      const mission = user.missions[i];
+      if (!mission.completed) {
+        mission.progress += 1;
+        
+        if (mission.progress >= mission.target) {
+          mission.completed = true;
+          mission.completedAt = new Date();
+          completedMissions.push(mission);
+          
+          // Add reward (AI messages)
+          user.aiMessagesRemaining += mission.reward;
+        }
+      }
+    }
+    
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: "Workout logged!",
+      weeklyProgress: user.weeklyProgress,
+      completedMissions,
+      aiMessagesRemaining: user.aiMessagesRemaining
+    });
+  } catch (error) {
+    console.error("Log workout error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ CLAIM WEEKLY REWARD
+router.post("/claim-weekly-reward", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+    
+    if (user.weeklyProgress.rewardClaimed) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Reward already claimed this week" 
+      });
+    }
+    
+    const goalMet = user.weeklyProgress.completedWorkouts >= user.weeklyProgress.weeklyGoal;
+    
+    if (!goalMet) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Complete ${user.weeklyProgress.weeklyGoal} workouts first! You've done ${user.weeklyProgress.completedWorkouts}` 
+      });
+    }
+    
+    // Give reward: +20 AI messages
+    user.aiMessagesRemaining += 20;
+    user.weeklyProgress.rewardClaimed = true;
+    
+    // Add achievement for completing weekly goal
+    const weeklyAchievement = {
+      id: `weekly_goal_${new Date().toISOString().slice(0, 10)}`,
+      name: "Weekly Warrior",
+      description: `Completed ${user.weeklyProgress.weeklyGoal} workouts in a week!`,
+      icon: "🏆",
+      earnedAt: new Date()
+    };
+    
+    user.achievements.push(weeklyAchievement);
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: "Weekly reward claimed! +20 AI messages",
+      aiMessagesRemaining: user.aiMessagesRemaining,
+      achievement: weeklyAchievement
+    });
+  } catch (error) {
+    console.error("Claim reward error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ GET USER ACTIVITY & MISSIONS
+router.get("/activity", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+    
+    // Generate missions based on body type if none exist
+    let missions = user.missions;
+    if (missions.length === 0 && user.bodyType) {
+      missions = generateMissionsForBodyType(user.bodyType);
+      user.missions = missions;
+      await user.save();
+    }
+    
+    res.json({
+      success: true,
+      activity: {
+        dailyCheckIns: user.dailyCheckIns,
+        currentStreak: user.currentStreak,
+        longestStreak: user.longestStreak,
+        lastCheckIn: user.lastCheckIn,
+        weeklyProgress: user.weeklyProgress,
+        missions: user.missions,
+        achievements: user.achievements,
+        aiMessagesRemaining: user.aiMessagesRemaining
+      }
+    });
+  } catch (error) {
+    console.error("Activity fetch error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ UPDATE BODY TYPE (generates missions)
+router.post("/set-body-type", authenticateToken, async (req, res) => {
+  try {
+    const { bodyType } = req.body;
+    
+    if (!['Ectomorph', 'Mesomorph', 'Endomorph'].includes(bodyType)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Invalid body type" 
+      });
+    }
+    
+    const user = await User.findById(req.user.id);
+    user.bodyType = bodyType;
+    
+    // Generate missions for this body type
+    user.missions = generateMissionsForBodyType(bodyType);
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: `Body type set to ${bodyType}`,
+      missions: user.missions
+    });
+  } catch (error) {
+    console.error("Set body type error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// Helper function to generate missions based on body type
+function generateMissionsForBodyType(bodyType) {
+  const missions = [];
+  
+  // Weekly workout mission (same for all, but different targets)
+  let weeklyGoal = 4;
+  let missionTitle = "";
+  let missionDesc = "";
+  
+  switch(bodyType) {
+    case 'Ectomorph':
+      weeklyGoal = 4;
+      missionTitle = "💪 Mass Builder";
+      missionDesc = "Complete 4 heavy lifting sessions this week";
+      break;
+    case 'Mesomorph':
+      weeklyGoal = 5;
+      missionTitle = "⚡ Balanced Athlete";
+      missionDesc = "Complete 5 balanced workouts this week";
+      break;
+    case 'Endomorph':
+      weeklyGoal = 6;
+      missionTitle = "🔥 Fat Torcher";
+      missionDesc = "Complete 6 cardio/HIIT sessions this week";
+      break;
+  }
+  
+  missions.push({
+    id: "weekly_workout_mission",
+    title: missionTitle,
+    description: missionDesc,
+    category: "weekly",
+    target: weeklyGoal,
+    progress: 0,
+    completed: false,
+    reward: 20
+  });
+  
+  // Streak mission
+  missions.push({
+    id: "streak_mission_7",
+    title: "🔥 7-Day Streak",
+    description: "Check in for 7 days in a row",
+    category: "streak",
+    target: 7,
+    progress: 0,
+    completed: false,
+    reward: 15
+  });
+  
+  // Share mission (social)
+  missions.push({
+    id: "social_share_mission",
+    title: "📱 Share Your Progress",
+    description: "Share your workout achievement on social media",
+    category: "daily",
+    target: 1,
+    progress: 0,
+    completed: false,
+    reward: 10
+  });
+  
+  return missions;
+}
+
+// ✅ GET AI MESSAGES REMAINING
+router.get("/ai-messages", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("aiMessagesRemaining plan");
+    
+    res.json({
+      success: true,
+      aiMessagesRemaining: user.aiMessagesRemaining,
+      plan: user.plan,
+      isUnlimited: user.plan !== 'free'  // Premium users get unlimited
+    });
+  } catch (error) {
+    console.error("AI messages fetch error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ USE ONE AI MESSAGE (decrement)
+router.post("/use-ai-message", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    // Premium users have unlimited messages
+    if (user.plan !== 'free') {
+      return res.json({
+        success: true,
+        aiMessagesRemaining: -1, // -1 means unlimited
+        isUnlimited: true
+      });
+    }
+    
+    if (user.aiMessagesRemaining <= 0) {
+      return res.status(403).json({
+        success: false,
+        error: "No AI messages remaining. Complete missions or upgrade to premium!",
+        aiMessagesRemaining: 0
+      });
+    }
+    
+    user.aiMessagesRemaining -= 1;
+    await user.save();
+    
+    res.json({
+      success: true,
+      aiMessagesRemaining: user.aiMessagesRemaining,
+      isUnlimited: false
+    });
+  } catch (error) {
+    console.error("Use AI message error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ GET ACHIEVEMENTS
+router.get("/achievements", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("achievements");
+    
+    res.json({
+      success: true,
+      achievements: user.achievements || [],
+      count: user.achievements?.length || 0
+    });
+  } catch (error) {
+    console.error("Achievements fetch error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
   }
 });
 export default router;
