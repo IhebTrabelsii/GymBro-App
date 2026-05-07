@@ -1,13 +1,12 @@
-import User from '../models/User.js'; // Add this import!
+import User from '../models/User.js';
 
-// Track daily message counts (simple in-memory store)
-export const messageCounts = new Map(); // 👈 Add 'export' keyword
+// Remove the messageCounts Map - we don't need it
+// export const messageCounts = new Map();
 
 export const checkAILimit = async (req, res, next) => {
   try {
     const userId = req.userId;
     
-    // Fix: Check if user exists
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -17,7 +16,6 @@ export const checkAILimit = async (req, res, next) => {
     
     const user = await User.findById(userId);
     
-    // Fix: Handle case where user is not found
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -27,34 +25,29 @@ export const checkAILimit = async (req, res, next) => {
     
     // Premium users have unlimited access
     if (user.plan !== 'free') {
+      req.isPremium = true;
       return next();
     }
     
-    // Free users: check daily limit
-    const today = new Date().toDateString();
-    const key = `${userId}-${today}`;
+    // ✅ Check database field instead of in-memory Map
+    const remainingMessages = user.aiMessagesRemaining ?? 10;
     
-    const currentCount = messageCounts.get(key) || 0;
-    const FREE_LIMIT = 10; // 10 messages per day for free users
-    
-    if (currentCount >= FREE_LIMIT) {
+    if (remainingMessages <= 0) {
       return res.status(403).json({
         success: false,
-        error: 'You\'ve reached your daily limit. Upgrade to Pro for unlimited messages!',
+        error: 'You\'ve used all your messages. Complete missions to earn more or upgrade to Pro!',
         requiresUpgrade: true,
-        limit: FREE_LIMIT,
-        used: currentCount
+        remaining: 0
       });
     }
     
-    // Increment count and attach to request
-    messageCounts.set(key, currentCount + 1);
-    req.messageCount = currentCount + 1;
+    // Attach user to request for later use
+    req.userDoc = user;
+    req.remainingMessages = remainingMessages;
     
     next();
   } catch (error) {
     console.error('AI rate limit error:', error);
-    // Allow request to proceed if rate limiting fails
     next();
   }
 };

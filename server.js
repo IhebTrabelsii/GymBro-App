@@ -47,7 +47,6 @@ app.use('/api/foods', foodRoutes);
 
 
 
-// Create initial admin if needed
 async function createInitialAdmin() {
   const adminExists = await User.findOne({ role: 'admin' });
   if (!adminExists && ADMIN_EMAIL && ADMIN_INITIAL_PASSWORD) {
@@ -71,8 +70,8 @@ mongoose.connect(MONGO_URI)
     console.log('✅ MongoDB connected');
     if (CREATE_DEFAULT_ADMIN === 'true') await createInitialAdmin();
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server listening on http://0.0.0.0:${PORT}`);
-  console.log(`📱 On your phone, use: http://YOUR_COMPUTER_IP:${PORT}`);
+  console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  console.log(`On your phone, use: http://YOUR_COMPUTER_IP:${PORT}`);
 });
   })
   .catch(err => {

@@ -1,4 +1,3 @@
-// Simple guardrail to keep AI focused on fitness
 export const fitnessGuardrail = (req, res, next) => {
   const { message } = req.body;
   
@@ -16,7 +15,6 @@ export const fitnessGuardrail = (req, res, next) => {
   const lowerMessage = message.toLowerCase().trim();
   console.log("🛡️ [GUARDRAIL] Message normalisé:", lowerMessage);
   
-  // ===== 1. SALUTATIONS ET EXPRESSIONS AMICALES (TOUJOURS ACCEPTÉES) =====
   const greetings = [
     'hi', 'hey', 'hello', 'hola', 'salut', 'bonjour', 'yo', 'wassup', 
     'sup', 'good morning', 'good afternoon', 'good evening', 'greetings',
@@ -32,7 +30,6 @@ export const fitnessGuardrail = (req, res, next) => {
     return next();
   }
   
-  // ===== 2. EXPRESSIONS SOCIALES (AUSSI ACCEPTÉES) =====
   const socialExpressions = [
     'how are you', 'how r u', 'how are u', 'how do you do',
     'nice to meet you', 'pleased to meet you', 'good to see you',
@@ -49,8 +46,6 @@ export const fitnessGuardrail = (req, res, next) => {
     return next();
   }
   
-  // ===== 3. DÉTECTION APPROXIMATIVE DES MOTS FITNESS (tolérante) =====
-  // On utilise des extraits de mots pour gérer les fautes de frappe
   const fitnessPatterns = [
     'workout', 'exercise', 'gym', 'muscle', 'fat', 'weight',
     'protein', 'calories', 'diet', 'nutrition', 'training', 'lifting',
@@ -69,7 +64,6 @@ export const fitnessGuardrail = (req, res, next) => {
   
   console.log("🛡️ [GUARDRAIL] Fitness-related?", isFitnessRelated);
   
-  // ===== 4. THÈMES CLAIREMENT HORS-SUJET À BLOQUER =====
   const offTopicKeywords = [
     'weather', 'politics', 'election', 'president', 'movie', 'film', 'game', 
     'joke', 'distance', 'earth', 'moon', 'sun', 'planet', 'history', 'math', 
@@ -85,9 +79,7 @@ export const fitnessGuardrail = (req, res, next) => {
   
   console.log("🛡️ [GUARDRAIL] Hors-sujet détecté?", isOffTopic);
 
-  // ===== 5. RÈGLES DE DÉCISION =====
   
-  // Blocage des messages clairement hors-sujet
   if (isOffTopic && !isFitnessRelated && !isGreeting && !isSocial) {
     console.log("🛡️ [GUARDRAIL] ❌ REJETÉ: hors-sujet");
     return res.status(400).json({
@@ -96,7 +88,6 @@ export const fitnessGuardrail = (req, res, next) => {
     });
   }
 
-  // Blocage des messages trop courts (sauf salutations déjà gérées)
   if (message.length < 3 && !isFitnessRelated) {
     console.log("🛡️ [GUARDRAIL] ❌ REJETÉ: message trop court");
     return res.status(400).json({
@@ -105,7 +96,6 @@ export const fitnessGuardrail = (req, res, next) => {
     });
   }
 
-  // TOUT LE RESTE EST ACCEPTÉ !
   console.log("🛡️ [GUARDRAIL] ✅ ACCEPTÉ");
   console.log("🛡️ [GUARDRAIL] ========== FIN ==========\n");
   next();

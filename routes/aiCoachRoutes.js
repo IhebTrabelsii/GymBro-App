@@ -2,7 +2,7 @@ import express from 'express';
 import User from '../models/User.js';
 import authenticateToken from '../middleware/auth.js';
 import { checkPremium } from '../middleware/checkPremium.js';
-import { checkAILimit, messageCounts } from '../middleware/aiRateLimit.js'; // 👈 Add messageCounts here
+import { checkAILimit } from '../middleware/aiRateLimit.js';
 import { fitnessGuardrail } from '../middleware/aiGuardrail.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 import { getAICoachResponse } from '../utils/aiCoachService.js';
@@ -94,7 +94,7 @@ router.post(
     }
   }
 );
-// Get remaining messages for free users
+
 router.get('/limits', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
@@ -114,17 +114,15 @@ router.get('/limits', authenticateToken, async (req, res) => {
       });
     }
     
-    const today = new Date().toDateString();
-    const key = `${req.userId}-${today}`;
-    const used = messageCounts?.get(key) || 0;
-    const FREE_LIMIT = 10;
+    // ✅ Use database field
+    const remaining = user.aiMessagesRemaining ?? 10;
     
     res.json({
       success: true,
       plan: 'free',
-      limit: FREE_LIMIT,
-      used,
-      remaining: FREE_LIMIT - used
+      limit: 10,
+      used: 10 - remaining,
+      remaining: remaining
     });
   } catch (error) {
     console.error('Limits error:', error);
