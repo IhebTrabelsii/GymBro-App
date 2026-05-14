@@ -30,7 +30,6 @@ if (!JWT_SECRET) throw new Error('❌ JWT_SECRET is not defined in environment v
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS & JSON
 app.use(cors());
 app.use(express.json());
 

@@ -7,35 +7,10 @@ import authenticateToken from "../middleware/auth.js";
 import { sendVerificationEmail } from "../utils/emailService.js";
 import { sendPasswordResetEmail } from "../utils/emailService.js";
 import nodemailer from 'nodemailer';
-import { Expo } from 'expo-server-sdk';
-const expo = new Expo();
 
 
-async function sendPushNotification(user, title, body, data = {}) {
-  if (!user.pushTokens || user.pushTokens.length === 0) return;
-  
-  const messages = [];
-  for (const pushToken of user.pushTokens) {
-    if (!Expo.isExpoPushToken(pushToken)) continue;
-    
-    messages.push({
-      to: pushToken,
-      sound: 'default',
-      title: title,
-      body: body,
-      data: data,
-    });
-  }
-  
-  const chunks = expo.chunkPushNotifications(messages);
-  for (const chunk of chunks) {
-    try {
-      await expo.sendPushNotificationsAsync(chunk);
-    } catch (error) {
-      console.error('Error sending push notification:', error);
-    }
-  }
-}
+
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
@@ -616,8 +591,6 @@ router.post("/checkin", authenticateToken, async (req, res) => {
     }
     if (user.currentStreak === 7) {
       user.bonusMessages = (user.bonusMessages || 0) + 15;
-        await sendPushNotification(user, '🔥 7-Day Streak!',
-         `Amazing! 7 days in a row! Keep it up! 💪`, { type: 'streak' });
          
       console.log(
         `🎉 7-day streak! +15 bonus messages. Total bonus: ${user.bonusMessages}`,
@@ -730,10 +703,7 @@ router.post("/log-workout", authenticateToken, async (req, res) => {
 
           // ✅ NEW: Add reward to bonusMessages (not aiMessagesRemaining)
           user.bonusMessages = (user.bonusMessages || 0) + mission.reward;
-          await sendPushNotification(user, '🎉 Mission Complete!', `${mission.title}
-             completed! You earned +${mission.reward} AI messages!`,
-              { type: 'mission_complete' }
-            );
+
           console.log(
             `✅ Mission complete! +${mission.reward} bonus messages. Total bonus: ${user.bonusMessages}`,
           );

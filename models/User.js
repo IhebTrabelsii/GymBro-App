@@ -212,10 +212,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       select: false,
     },
-pushTokens: {
-  type: [String],
-  default: []
-},
+
     resetPasswordExpires: {
       type: Date,
       select: false,
