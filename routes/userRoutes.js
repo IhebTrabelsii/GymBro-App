@@ -1179,18 +1179,7 @@ router.post("/contact-support", authenticateToken, async (req, res) => {
     
     const nodemailer = await import('nodemailer');
     
-    // Try with correct Gmail SMTP settings
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',  // Hardcoded for testing
-      port: 465,                // Try 465 first (SSL)
-      secure: true,             // true for port 465
-      auth: {
-        user: 'iheb.trabelsi.gd@gmail.com',  // Hardcoded for testing
-        pass: process.env.SMTP_PASS,          // Your app password with spaces
-      },
-      debug: true,  // This will show SMTP conversation in console
-      logger: true,
-    });
+
     
     // Verify connection before sending
     await transporter.verify();
